@@ -9,8 +9,10 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/preact": "^5.1.2",
+    "@astrojs/preact": "^3.5.4",
+    "@types/leaflet": "^1.9.21",
     "astro": "^4.16.19",
+    "leaflet": "^1.9.4",
     "preact": "^10.29.1"
   }
 }
