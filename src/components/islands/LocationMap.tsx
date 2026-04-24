@@ -71,15 +71,29 @@ export default function LocationMap({
       },
     });
 
+    // Map of station ID → marker for bidirectional sync
+    const markerById = new Map<number, L.Marker>();
     const nonPointLayers: L.Layer[] = [];
 
     for (const feature of (locationsData as GeoJSON.FeatureCollection).features) {
       if (!feature.geometry) continue;
-      const popup = buildPopup((feature.properties ?? {}) as Record<string, any>);
+      const props = (feature.properties ?? {}) as Record<string, any>;
+      const popup = buildPopup(props);
 
       if (feature.geometry.type === 'Point') {
         const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates;
-        cluster.addLayer(L.marker([lat, lng]).bindPopup(popup));
+        const id = props.ESITEID as number;
+        const marker = L.marker([lat, lng]).bindPopup(popup);
+
+        // Notify sidebar when a marker is clicked
+        marker.on('click', () => {
+          window.dispatchEvent(
+            new CustomEvent('station:highlight', { detail: { id } })
+          );
+        });
+
+        markerById.set(id, marker);
+        cluster.addLayer(marker);
       } else {
         nonPointLayers.push(L.geoJSON(feature).bindPopup(popup));
       }
@@ -88,14 +102,50 @@ export default function LocationMap({
     map.addLayer(cluster);
     nonPointLayers.forEach((l) => l.addTo(map));
 
+    let defaultBounds: L.LatLngBounds | null = null;
+
     if (cluster.getLayers().length === 1 && (locationsData as GeoJSON.FeatureCollection).features[0]?.geometry?.type === 'Point') {
       const [lng, lat] = ((locationsData as GeoJSON.FeatureCollection).features[0].geometry as GeoJSON.Point).coordinates;
       map.setView([lat, lng], zoom);
     } else if (cluster.getLayers().length > 0) {
-      map.fitBounds(cluster.getBounds());
+      defaultBounds = cluster.getBounds();
+      map.fitBounds(defaultBounds);
     }
 
-    return () => { map.remove(); };
+    // station:select — fly to marker and open its popup
+    const handleSelect = (e: Event) => {
+      const { id, lat, lng } = (e as CustomEvent<{ id: number; lat: number; lng: number }>).detail;
+      const marker = markerById.get(id);
+      if (!marker) return;
+      // zoomToShowLayer handles declustering before opening the popup
+      cluster.zoomToShowLayer(marker, () => {
+        marker.openPopup();
+      });
+    };
+
+    // station:fitbounds — re-fit map to a set of markers (empty ids = full reset)
+    const handleFitBounds = (e: Event) => {
+      const { ids } = (e as CustomEvent<{ ids: number[] }>).detail;
+      if (!ids || ids.length === 0) {
+        if (defaultBounds) map.fitBounds(defaultBounds, { padding: [20, 20] });
+        return;
+      }
+      const bounds = L.latLngBounds([]);
+      for (const id of ids) {
+        const m = markerById.get(id);
+        if (m) bounds.extend(m.getLatLng());
+      }
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
+    };
+
+    window.addEventListener('station:select', handleSelect);
+    window.addEventListener('station:fitbounds', handleFitBounds);
+
+    return () => {
+      window.removeEventListener('station:select', handleSelect);
+      window.removeEventListener('station:fitbounds', handleFitBounds);
+      map.remove();
+    };
   }, []);
 
   return <div ref={containerRef} style={{ height, width: '100%' }} />;
