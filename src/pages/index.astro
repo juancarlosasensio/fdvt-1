@@ -1,5 +1,7 @@
 ---
 import LocationMap from "../components/islands/LocationMap.tsx";
+import MapSidebar from "../components/islands/MapSidebar.tsx";
+import "../styles/sidebar.css";
 ---
 
 <html lang="en">
@@ -7,11 +9,14 @@ import LocationMap from "../components/islands/LocationMap.tsx";
     <meta charset="utf-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <title>Vermont Fire Stations</title>
   </head>
-  <body style="margin:0">
-    <LocationMap client:only="preact" height="100vh" />
+  <body>
+    <MapSidebar client:only="preact" />
+    <div class="map-container">
+      <LocationMap client:only="preact" height="100%" />
+    </div>
   </body>
 </html>
